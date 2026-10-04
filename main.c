@@ -94,6 +94,55 @@ typedef struct UIElement {
 UIElement children[UI_CHILDREN_LIMIT];
 size_t children_size = 0;
 UIElement *selected = NULL;
+Color colors[] = {PURPLE, YELLOW, ORANGE, PINK, RED, GREEN, BEIGE, BROWN};
+
+
+UIElement layout_init() {
+    children[children_size++] = (UIElement){
+        .position = Vector2_ZERO,
+        .size = {.width = 300, .height = 300},
+        .children = NULL,
+        .bg_color = colors[children_size - 1]
+    };
+    children[children_size++] = (UIElement){
+        .position = Vector2_ZERO,
+        .size = {.width = 350, .height = 200},
+        .children = NULL,
+        .bg_color = colors[children_size - 1]
+    };
+    UIElement root = {
+        .position = {.x = 50, .y = 50},
+        .padding = padding_all(20),
+        .child_gap = 20,
+        .children = children,
+        .bg_color = BLUE
+    };
+
+    return root;
+}
+
+void layout_add(UIElement *root) {
+    size_t count = sizeof(colors) / sizeof(colors[0]);
+
+    if (children_size >= count) {
+        return;
+    }
+
+    children[children_size++] = (UIElement){
+        .position = Vector2_ZERO,
+        .size = {.width = 50, .height = 50},
+        .children = NULL,
+        .bg_color = colors[children_size - 1]
+    };
+}
+
+void layout_remove(UIElement *root) {
+    if (children_size <= 2) {
+        return;
+    }
+    children_size--;
+}
+
 
 
 void draw_rectangle(UIElement e, float posX, float posY, float width, float height) {
@@ -203,33 +252,13 @@ void change_size(UIElement *e, GROW_DIRECTION direction, float amount) {
     }
 }
 
-
 int main(void) {
     init();
 
     float amount = 10;
     Vector2 click = Vector2_ZERO;
 
-    // defint initial layout
-    children[children_size++] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {.width = 300, .height = 300},
-        .children = NULL,
-        .bg_color = PURPLE
-    };
-    children[children_size++] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {.width = 350, .height = 200},
-        .children = NULL,
-        .bg_color = YELLOW
-    };
-    UIElement root = {
-        .position = {.x = 50, .y = 50},
-        .padding = padding_all(20),
-        .child_gap = 20,
-        .children = children,
-        .bg_color = BLUE
-    };
+    UIElement root = layout_init();
 
     while (!quit_pressed()) {
         if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
@@ -243,6 +272,13 @@ int main(void) {
         }
         if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
             change_size(selected, GROW_DIR_HEIGHT, amount);
+        }
+
+        if (IsKeyPressed(KEY_F)) {
+            layout_add(&root);
+        }
+        if (IsKeyPressed(KEY_G)) {
+            layout_remove(&root);
         }
 
         click = Vector2_ZERO;
