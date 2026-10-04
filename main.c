@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -166,6 +167,9 @@ void change_size(Size *size, GROW_DIRECTION direction, float amount) {
         case GROW_DIR_HEIGHT:
             size->height = fmaxf(size->height + amount, 0);
             break;
+        case GROW_DIR_COUNT:
+            assert(false);
+            break;
     }
 }
 
@@ -190,7 +194,6 @@ int main(void) {
         if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
             change_size(&purple_size, GROW_DIR_HEIGHT, amount);
         }
-
 
         draw_frame(purple_size);
     }

@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(raylib)
 add_executable(learning_ui_layout
         main.c
 )
-target_compile_options(learning_ui_layout PRIVATE -Wall -Wextra)
+target_compile_options(learning_ui_layout PRIVATE -Wall -Wextra -Werror=switch)
 target_link_libraries(learning_ui_layout raylib)
 
 add_custom_command(TARGET learning_ui_layout POST_BUILD
