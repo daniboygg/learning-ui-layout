@@ -89,7 +89,7 @@ void draw_uielement(UIElement e) {
         e.size.height = fmaxf(e.size.height, c.size.height);
     }
 
-    float all_child_gaps = ((float)children_size - 1) * e.child_gap;
+    float all_child_gaps = ((float) children_size - 1) * e.child_gap;
     e.size.width += e.padding.left + e.padding.right + all_child_gaps;
     e.size.height += e.padding.top + e.padding.bottom;
 
@@ -110,7 +110,7 @@ void draw_uielement(UIElement e) {
 }
 
 
-void draw_frame() {
+void draw_frame(Size purple_size) {
     BeginDrawing();
     ClearBackground(DARKGRAY);
 
@@ -119,7 +119,7 @@ void draw_frame() {
 
     children[children_size++] = (UIElement){
         .position = Vector2_ZERO,
-        .size = {.width = 300, .height = 300},
+        .size = {.width = purple_size.width, .height = purple_size.height},
         .children = NULL,
         .bg_color = PURPLE
     };
@@ -152,11 +152,47 @@ void draw_frame() {
     EndDrawing();
 }
 
+typedef enum GROW_DIR {
+    GROW_DIR_WIDTH,
+    GROW_DIR_HEIGHT,
+    GROW_DIR_COUNT,
+} GROW_DIRECTION;
+
+void change_size(Size *size, GROW_DIRECTION direction, float amount) {
+    switch (direction) {
+        case GROW_DIR_WIDTH:
+            size->width = fmaxf(size->width + amount, 0);
+            break;
+        case GROW_DIR_HEIGHT:
+            size->height = fmaxf(size->height + amount, 0);
+            break;
+    }
+}
+
+
 int main(void) {
     init();
 
+    Size purple_size = {.width = 300, .height = 300};
+    float amount = 10;
+
+
     while (!quit_pressed()) {
-        draw_frame();
+        if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
+            change_size(&purple_size, GROW_DIR_WIDTH, amount);
+        }
+        if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
+            change_size(&purple_size, GROW_DIR_WIDTH, -amount);
+        }
+        if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
+            change_size(&purple_size, GROW_DIR_HEIGHT, -amount);
+        }
+        if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
+            change_size(&purple_size, GROW_DIR_HEIGHT, amount);
+        }
+
+
+        draw_frame(purple_size);
     }
 
     fini();
