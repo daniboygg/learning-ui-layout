@@ -104,35 +104,33 @@ UIElement *selected = NULL;
 Color colors[] = {PURPLE, YELLOW, ORANGE, PINK, RED, GREEN, BEIGE, BROWN};
 
 
+void layout_add_with_params(UIElement *_, Vector2 pos, Size size, Color bg_color) {
+    size_t count = sizeof(colors) / sizeof(colors[0]);
+
+    if (children_size >= count) {
+        return;
+    }
+
+    children[children_size] = (UIElement){
+        .position = pos,
+        .size = size,
+        .children = NULL,
+        .bg_color = bg_color,
+    };
+    children_size++;
+}
+
+void layout_add(UIElement *root) {
+    layout_add_with_params(
+        root,
+        Vector2_ZERO,
+        (Size){.width = 50, .height = 50},
+        colors[children_size]
+    );
+}
+
+
 UIElement layout_init() {
-    children[children_size] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {.width = 300, .height = 300},
-        .children = NULL,
-        .bg_color = colors[children_size]
-    };
-    children_size++;
-
-    children[children_size] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {
-            .width = 350,
-            .width_sizing = SIZING_TYPE_GROW,
-            .height = 200,
-            .height_sizing = SIZING_TYPE_GROW,
-        },
-        .children = NULL,
-        .bg_color = colors[children_size]
-    };
-    children_size++;
-
-    children[children_size] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {.width = 300, .height = 300},
-        .children = NULL,
-        .bg_color = colors[children_size]
-    };
-    children_size++;
     UIElement root = {
         .size = {
             .width = WINDOW_WIDTH,
@@ -146,23 +144,32 @@ UIElement layout_init() {
         .bg_color = BLUE
     };
 
+    layout_add_with_params(
+        &root,
+        Vector2_ZERO,
+        (Size){.width = 300, .height = 300},
+        colors[children_size]
+    );
+    layout_add_with_params(
+        &root,
+        Vector2_ZERO,
+        (Size){
+            .width = 350,
+            .width_sizing = SIZING_TYPE_GROW,
+            .height = 200,
+            .height_sizing = SIZING_TYPE_GROW,
+        },
+        colors[children_size]
+    );
+    layout_add_with_params(
+        &root,
+        Vector2_ZERO,
+        (Size){.width = 300, .height = 300},
+        colors[children_size]
+    );
+
+
     return root;
-}
-
-void layout_add(UIElement *_) {
-    size_t count = sizeof(colors) / sizeof(colors[0]);
-
-    if (children_size >= count) {
-        return;
-    }
-
-    children[children_size] = (UIElement){
-        .position = Vector2_ZERO,
-        .size = {.width = 50, .height = 50},
-        .children = NULL,
-        .bg_color = colors[children_size]
-    };
-    children_size++;
 }
 
 void layout_remove(UIElement *_) {
