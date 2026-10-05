@@ -54,8 +54,14 @@ void draw_text(const char *text, Vector2 position) {
 #define Vector2_ZERO ((Vector2){.x = 0.0f, .y = 0.0f})
 #define Vector2_NULL ((Vector2){.x = -1.0f, .y =-1.0f})
 
+typedef enum SIZING_TYPE {
+    SIZING_TYPE_FIT,
+    SIZING_TYPE_FIXED,
+} SIZING_TYPE;
+
 typedef struct {
     float width, height;
+    SIZING_TYPE width_sizing, height_sizing;
 } Size;
 
 typedef struct {
@@ -163,13 +169,37 @@ void draw_uielement(UIElement e, Vector2 click) {
 
     for (int i = 0; i < children_size; i++) {
         UIElement c = e.children[i];
-        e.size.width += c.size.width;
-        e.size.height = fmaxf(e.size.height, c.size.height);
+        switch (e.size.width_sizing) {
+            case SIZING_TYPE_FIT:
+                e.size.width += c.size.width;
+                break;
+            case SIZING_TYPE_FIXED:
+                break;
+        }
+        switch (e.size.height_sizing) {
+            case SIZING_TYPE_FIT:
+                e.size.height = fmaxf(e.size.height, c.size.height);
+                break;
+            case SIZING_TYPE_FIXED:
+                break;
+        }
     }
 
     float all_child_gaps = ((float) children_size - 1) * e.child_gap;
-    e.size.width += e.padding.left + e.padding.right + all_child_gaps;
-    e.size.height += e.padding.top + e.padding.bottom;
+    switch (e.size.width_sizing) {
+        case SIZING_TYPE_FIT:
+            e.size.width += e.padding.left + e.padding.right + all_child_gaps;
+            break;
+        case SIZING_TYPE_FIXED:
+            break;
+    }
+    switch (e.size.width_sizing) {
+        case SIZING_TYPE_FIT:
+            e.size.height += e.padding.top + e.padding.bottom;
+            break;
+        case SIZING_TYPE_FIXED:
+            break;
+    }
 
     // 2. draw (calculate positions)
     draw_rectangle(e, e.position.x, e.position.y, e.size.width, e.size.height);
@@ -178,7 +208,8 @@ void draw_uielement(UIElement e, Vector2 click) {
     for (int i = 0; i < children_size; i++) {
         UIElement c = e.children[i];
 
-        if (!Vector2Equals(click, Vector2_ZERO) && CheckCollisionPointRec(
+        {
+            if (!Vector2Equals(click, Vector2_ZERO) && CheckCollisionPointRec(
                 click,
                 (Rectangle){
                     .x = left_offest + c.position.x,
@@ -187,15 +218,16 @@ void draw_uielement(UIElement e, Vector2 click) {
                     .height = c.size.height,
                 })
         ) {
-            selected = &e.children[i];
-            found = true;
+                selected = &e.children[i];
+                found = true;
         }
 
-        if (&e.children[i] == selected) {
-            c.border = border_all(3);
-            c.border_color = RED;
-        } else {
-            c.border = border_all(0);
+            if (&e.children[i] == selected) {
+                c.border = border_all(3);
+                c.border_color = RED;
+            } else {
+                c.border = border_all(0);
+            }
         }
 
         draw_rectangle(
@@ -234,7 +266,6 @@ void draw_frame(UIElement root, Vector2 click) {
 typedef enum GROW_DIR {
     GROW_DIR_WIDTH,
     GROW_DIR_HEIGHT,
-    GROW_DIR_COUNT,
 } GROW_DIRECTION;
 
 void change_size(UIElement *e, GROW_DIRECTION direction, float amount) {
@@ -245,9 +276,6 @@ void change_size(UIElement *e, GROW_DIRECTION direction, float amount) {
             break;
         case GROW_DIR_HEIGHT:
             e->size.height = fmaxf(e->size.height + amount, 0);
-            break;
-        case GROW_DIR_COUNT:
-            assert(false);
             break;
     }
 }
