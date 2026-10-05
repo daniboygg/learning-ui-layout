@@ -57,6 +57,7 @@ void draw_text(const char *text, Vector2 position) {
 typedef enum SIZING_TYPE {
     SIZING_TYPE_FIT,
     SIZING_TYPE_FIXED,
+    SIZING_TYPE_GROW,
 } SIZING_TYPE;
 
 typedef struct {
@@ -104,20 +105,41 @@ Color colors[] = {PURPLE, YELLOW, ORANGE, PINK, RED, GREEN, BEIGE, BROWN};
 
 
 UIElement layout_init() {
-    children[children_size++] = (UIElement){
+    children[children_size] = (UIElement){
         .position = Vector2_ZERO,
         .size = {.width = 300, .height = 300},
         .children = NULL,
-        .bg_color = colors[children_size - 1]
+        .bg_color = colors[children_size]
     };
-    children[children_size++] = (UIElement){
+    children_size++;
+
+    children[children_size] = (UIElement){
         .position = Vector2_ZERO,
-        .size = {.width = 350, .height = 200},
+        .size = {
+            .width = 350,
+            .width_sizing = SIZING_TYPE_GROW,
+            .height = 200,
+            .height_sizing = SIZING_TYPE_GROW,
+        },
         .children = NULL,
-        .bg_color = colors[children_size - 1]
+        .bg_color = colors[children_size]
     };
+    children_size++;
+
+    children[children_size] = (UIElement){
+        .position = Vector2_ZERO,
+        .size = {.width = 300, .height = 300},
+        .children = NULL,
+        .bg_color = colors[children_size]
+    };
+    children_size++;
     UIElement root = {
-        .position = {.x = 50, .y = 50},
+        .size = {
+            .width = WINDOW_WIDTH,
+            .width_sizing = SIZING_TYPE_FIXED,
+            .height = WINDOW_HEIGHT,
+            .height_sizing = SIZING_TYPE_FIXED,
+        },
         .padding = padding_all(20),
         .child_gap = 20,
         .children = children,
@@ -127,22 +149,23 @@ UIElement layout_init() {
     return root;
 }
 
-void layout_add(UIElement *root) {
+void layout_add(UIElement *_) {
     size_t count = sizeof(colors) / sizeof(colors[0]);
 
     if (children_size >= count) {
         return;
     }
 
-    children[children_size++] = (UIElement){
+    children[children_size] = (UIElement){
         .position = Vector2_ZERO,
         .size = {.width = 50, .height = 50},
         .children = NULL,
-        .bg_color = colors[children_size - 1]
+        .bg_color = colors[children_size]
     };
+    children_size++;
 }
 
-void layout_remove(UIElement *root) {
+void layout_remove(UIElement *_) {
     if (children_size <= 2) {
         return;
     }
@@ -150,79 +173,120 @@ void layout_remove(UIElement *root) {
 }
 
 
-
-void draw_rectangle(UIElement e, float posX, float posY, float width, float height) {
-    DrawRectangle(posX, posY, width, height, e.border_color);
+void draw_rectangle(UIElement e, float x, float y, float width, float height) {
+    DrawRectangle((int) x, (int) y, (int) width, (int) height, e.border_color);
     DrawRectangle(
-        posX + e.border.left,
-        posY + e.border.top,
-        width - e.border.left - e.border.right,
-        height - e.border.top - e.border.bottom,
+        (int) (x + e.border.left),
+        (int) (y + e.border.top),
+        (int) (width - e.border.left - e.border.right),
+        (int) (height - e.border.top - e.border.bottom),
         e.bg_color
     );
 }
 
 
-void draw_uielement(UIElement e, Vector2 click) {
-    // 1. layout (calculate sizing)
-    float left_offest = e.position.x + e.padding.left + e.border.left;
+void draw_uielement(UIElement parent, Vector2 click) {
+    // 1. fit sizing
+    float left_offest = parent.position.x + parent.padding.left + parent.border.left;
 
-    for (int i = 0; i < children_size; i++) {
-        UIElement c = e.children[i];
-        switch (e.size.width_sizing) {
+    for (size_t i = 0; i < children_size; i++) {
+        UIElement c = parent.children[i];
+        switch (parent.size.width_sizing) {
             case SIZING_TYPE_FIT:
-                e.size.width += c.size.width;
+                parent.size.width += c.size.width;
                 break;
             case SIZING_TYPE_FIXED:
+            case SIZING_TYPE_GROW:
                 break;
         }
-        switch (e.size.height_sizing) {
+        switch (parent.size.height_sizing) {
             case SIZING_TYPE_FIT:
-                e.size.height = fmaxf(e.size.height, c.size.height);
+                parent.size.height = fmaxf(parent.size.height, c.size.height);
                 break;
             case SIZING_TYPE_FIXED:
+            case SIZING_TYPE_GROW:
                 break;
         }
     }
 
-    float all_child_gaps = ((float) children_size - 1) * e.child_gap;
-    switch (e.size.width_sizing) {
+    float all_child_gaps = ((float) children_size - 1) * parent.child_gap;
+    switch (parent.size.width_sizing) {
         case SIZING_TYPE_FIT:
-            e.size.width += e.padding.left + e.padding.right + all_child_gaps;
+            parent.size.width += parent.padding.left + parent.padding.right + all_child_gaps;
             break;
         case SIZING_TYPE_FIXED:
             break;
+        case SIZING_TYPE_GROW:
+            assert(false);
+            break;
     }
-    switch (e.size.width_sizing) {
+    switch (parent.size.width_sizing) {
         case SIZING_TYPE_FIT:
-            e.size.height += e.padding.top + e.padding.bottom;
+            parent.size.height += parent.padding.top + parent.padding.bottom;
             break;
         case SIZING_TYPE_FIXED:
             break;
+        case SIZING_TYPE_GROW:
+            assert(false);
+            break;
     }
 
-    // 2. draw (calculate positions)
-    draw_rectangle(e, e.position.x, e.position.y, e.size.width, e.size.height);
+    // 2. grow sizing
+    float remaining_width = parent.size.width - parent.padding.left - parent.padding.right;
+    for (size_t i = 0; i < children_size; i++) {
+        remaining_width -= parent.children[i].size.width;
+    }
+    remaining_width -= all_child_gaps;
+
+    float remaining_height = parent.size.height - parent.padding.top - parent.padding.bottom;
+
+    for (size_t i = 0; i < children_size; i++) {
+        switch (parent.children[i].size.width_sizing) {
+            case SIZING_TYPE_FIT:
+            case SIZING_TYPE_FIXED:
+                break;
+            case SIZING_TYPE_GROW:
+                parent.children[i].size.width += remaining_width;
+                break;
+        }
+        switch (parent.children[i].size.height_sizing) {
+            case SIZING_TYPE_FIT:
+            case SIZING_TYPE_FIXED:
+                break;
+            case SIZING_TYPE_GROW:
+                parent.children[i].size.height += remaining_height - parent.children[i].size.height;
+                break;
+        }
+    }
+
+    // 3. calculate positions and draw
+    draw_rectangle(parent, parent.position.x, parent.position.y, parent.size.width, parent.size.height);
 
     bool found = false;
-    for (int i = 0; i < children_size; i++) {
-        UIElement c = e.children[i];
+    for (size_t i = 0; i < children_size; i++) {
+        UIElement c = parent.children[i];
+
+        float x, y, height, width;
+        x = left_offest + c.position.x;
+        width = c.size.width;
+        y = parent.position.y + parent.padding.top + c.position.y;
+        height = c.size.height;
 
         {
             if (!Vector2Equals(click, Vector2_ZERO) && CheckCollisionPointRec(
-                click,
-                (Rectangle){
-                    .x = left_offest + c.position.x,
-                    .y = e.position.y + e.padding.top + c.position.y,
-                    .width = c.size.width,
-                    .height = c.size.height,
-                })
-        ) {
-                selected = &e.children[i];
+                    click,
+                    (Rectangle){
+                        .x = x,
+                        .y = y,
+                        .width = width,
+                        .height = height,
+                    })
+            ) {
+                selected = &parent.children[i];
                 found = true;
-        }
+            }
 
-            if (&e.children[i] == selected) {
+            if (&parent.children[i] == selected) {
                 c.border = border_all(3);
                 c.border_color = RED;
             } else {
@@ -230,14 +294,8 @@ void draw_uielement(UIElement e, Vector2 click) {
             }
         }
 
-        draw_rectangle(
-            c,
-            left_offest + c.position.x,
-            e.position.y + e.padding.top + c.position.y,
-            c.size.width,
-            c.size.height
-        );
-        left_offest += c.size.width + e.child_gap;
+        draw_rectangle(c, x, y, width, height);
+        left_offest += c.size.width + parent.child_gap;
     }
 
     if (!Vector2Equals(click, Vector2_ZERO) && !found) {
@@ -314,6 +372,11 @@ int main(void) {
             click = GetMousePosition();
         }
 
+
+        if (IsWindowResized()) {
+            root.size.width = (float) GetScreenWidth();
+            root.size.height = (float) GetScreenHeight();
+        }
         draw_frame(root, click);
     }
 
