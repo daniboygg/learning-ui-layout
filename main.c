@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "raylib.h"
 #include "raymath.h"
@@ -345,8 +347,97 @@ void change_size(UIElement *e, GROW_DIRECTION direction, float amount) {
     }
 }
 
+
+// init tree structure
+typedef struct Node {
+    char value;
+    struct Node *first_children;
+    struct Node *next_sibling;
+} Node;
+
+typedef struct Allocator {
+    size_t len;
+    size_t cap;
+    Node *data;
+} NodeAllocator;
+
+NodeAllocator node_allocator_init() {
+    NodeAllocator a = {0};
+    a.len = 0;
+    a.cap = 1024 * 1024;
+    a.data = malloc(sizeof(uint8_t) * a.cap);
+    assert(a.data != NULL);
+    return a;
+}
+
+Node *node_alloc(NodeAllocator *a) {
+    assert(a->len + 1 < a->cap);
+    return &a->data[a->len++];
+}
+
+Node *node_add(NodeAllocator *a, Node *parent, char v) {
+    // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
+    Node *n = node_alloc(a);
+    *n = (Node){.value = v};
+
+    if (parent == NULL) {
+        return n;
+    }
+
+    if (parent->first_children == NULL) {
+        parent->first_children = n;
+    } else {
+        Node *c = parent->first_children;
+        while (c->next_sibling != NULL) {
+            c = c->next_sibling;
+        }
+        c->next_sibling = n;
+    }
+    return n;
+}
+
+void node_print_postorder(Node *node) {
+    if (node == NULL) {
+        return;
+    }
+    if (node->first_children == NULL) {
+        printf("%c\n", node->value);
+        return;
+    }
+
+    Node *child = node->first_children;
+    while (child->next_sibling != NULL) {
+        node_print_postorder(child);
+        child = child->next_sibling;
+    }
+    node_print_postorder(child);
+
+    printf("%c\n", node->value);
+}
+// fini tree structure
+
 int main(void) {
     init();
+
+    NodeAllocator a = node_allocator_init();
+    Node *r = node_add(&a, NULL, '1');
+
+    Node *n2 = node_add(&a, r, '2');
+    node_add(&a, n2, '5');
+    Node *n3 = node_add(&a, r, '3');
+    Node *n4 = node_add(&a, r, '4');
+    node_add(&a, n4, '6');
+    node_add(&a, n4, '7');
+    node_add(&a, n4, '8');
+    node_add(&a, n4, '9');
+
+
+
+    printf("================================\n");
+
+    node_print_postorder(r);
+
+    printf("================================\n");
 
     float amount = 10;
     Vector2 click = Vector2_ZERO;
