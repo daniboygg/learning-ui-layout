@@ -172,7 +172,18 @@ void node_print_postorder(Node *node) {
 // fini ui framework
 
 UIElement children[UI_CHILDREN_LIMIT];
-Color colors[] = {PURPLE, YELLOW, ORANGE, PINK, RED, GREEN, BEIGE, BROWN};
+Color colors[] = {
+    {  78, 121, 167, 255 },  // blue
+    { 255, 157, 167, 255 },  // pink
+    { 237, 201,  72, 255 },  // yellow
+    { 118, 183, 178, 255 },  // teal
+    { 242, 142,  43, 255 },  // orange
+    { 225,  87,  89, 255 },  // red
+    {  89, 161,  79, 255 },  // green
+    { 176, 122, 161, 255 },  // purple
+    { 156, 117,  95, 255 },  // brown
+    { 186, 176, 172, 255 },  // gray
+};
 int children_size = 0;
 
 UIElement *selected = NULL;
