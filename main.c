@@ -199,7 +199,12 @@ void layout_add(NodeAllocator *a, Node *root) {
         a,
         root,
         Vector2_ZERO,
-        (Size){.width = 50, .height = 50},
+        (Size){
+            .width = 50,
+            .width_sizing = SIZING_TYPE_FIXED,
+            .height = 50,
+            .height_sizing = SIZING_TYPE_FIXED,
+        },
         colors[children_size],
         children_size
     );
@@ -209,10 +214,8 @@ void layout_add(NodeAllocator *a, Node *root) {
 Node *layout_init(NodeAllocator *a) {
     UIElement root_data = (UIElement){
         .size = {
-            .width = WINDOW_WIDTH,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = WINDOW_HEIGHT,
-            .height_sizing = SIZING_TYPE_FIXED,
+            .width_sizing = SIZING_TYPE_FIT,
+            .height_sizing = SIZING_TYPE_FIT,
         },
         .padding = padding_all(20),
         .child_gap = 20,
@@ -277,43 +280,45 @@ void calculate_fit_sizing(Node *node) {
     if (node == NULL) {
         return;
     }
+
+    UIElement *value = node->value;
+    if (value->size.width_sizing == SIZING_TYPE_FIT) {
+        value->size.width = 0;
+    }
+    if (value->size.height_sizing == SIZING_TYPE_FIT) {
+        value->size.height = 0;
+    }
+
     // leaf node
-    if (node->first_children == NULL) {
+    if (node->first_children == NULL && node->parent != NULL) {
+        UIElement *parent = node->parent->value;
+        if (parent->size.width_sizing == SIZING_TYPE_FIT) {
+            parent->size.width += value->size.width;
+        }
+        if (parent->size.height_sizing == SIZING_TYPE_FIT) {
+            parent->size.height = fmaxf(parent->size.height, value->size.height);
+        }
         return;
     }
 
     // iterate over all children
     Node *child = node->first_children;
-    while (child->next_sibling != NULL) {
+    size_t n_children = 0;
+    while (child != NULL) {
         calculate_fit_sizing(child);
         child = child->next_sibling;
+        n_children += 1;
     }
-    calculate_fit_sizing(child);
 
-    // parent sizing
-    float all_child_gaps = 0;
-    // TODO: calculate child gaps i need size of children ((float) children_size - 1) * node->parent->value->child_gap;
-    // switch (node->value->size.width_sizing) {
-    //     case SIZING_TYPE_FIT:
-    //         break;
-    //     case SIZING_TYPE_FIXED:
-    //         assert(node->parent != NULL);
-    //         node->parent->value->size.width += child->value->size.width;
-    //         break;
-    //     case SIZING_TYPE_GROW:
-    //         assert(false);
-    //         break;
-    // }
-    // switch (node->value->size.width_sizing) {
-    //     case SIZING_TYPE_FIT:
-    //         break;
-    //     case SIZING_TYPE_FIXED:
-    //         assert(node->parent != NULL);
-    //         node->parent->value->size.height = fmaxf(node->parent->value->size.height, child->value->size.height);
-    //     case SIZING_TYPE_GROW:
-    //         assert(false);
-    //         break;
-    // }
+
+    if (value->size.width_sizing == SIZING_TYPE_FIT) {
+        float all_child_gaps = (float)(n_children - 1) * value->child_gap;
+        value->size.width += all_child_gaps;
+        value->size.width += value->padding.left + value->padding.right;
+    }
+    if (value->size.height_sizing == SIZING_TYPE_FIT) {
+        value->size.height += value->padding.top + value->padding.bottom;
+    }
 }
 
 void calculate_positions_and_draw(Node *parent, Vector2 click, bool *found, float left_offest) {
@@ -491,10 +496,10 @@ int main(void) {
         }
 
 
-        if (IsWindowResized()) {
-            root->value->size.width = (float) GetScreenWidth();
-            root->value->size.height = (float) GetScreenHeight();
-        }
+        // if (IsWindowResized()) {
+        //     root->value->size.width = (float) GetScreenWidth();
+        //     root->value->size.height = (float) GetScreenHeight();
+        // }
         draw_frame(root, click);
     }
 
