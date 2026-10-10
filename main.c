@@ -214,8 +214,10 @@ void layout_add(NodeAllocator *a, Node *root) {
 Node *layout_init(NodeAllocator *a) {
     UIElement root_data = (UIElement){
         .size = {
-            .width_sizing = SIZING_TYPE_FIT,
-            .height_sizing = SIZING_TYPE_FIT,
+            .width = WINDOW_WIDTH,
+            .width_sizing = SIZING_TYPE_FIXED,
+            .height = WINDOW_HEIGHT,
+            .height_sizing = SIZING_TYPE_FIXED,
         },
         .padding = padding_all(20),
         .child_gap = 20,
@@ -237,7 +239,18 @@ Node *layout_init(NodeAllocator *a) {
         colors[children_size],
         2
     );
-
+    layout_add_with_params(
+        a,
+        root,
+        Vector2_ZERO,
+        (Size){
+            .width_sizing = SIZING_TYPE_GROW,
+            .height = 300,
+            .height_sizing = SIZING_TYPE_FIXED,
+        },
+        colors[children_size],
+        3
+    );
     layout_add_with_params(
         a,
         root,
@@ -249,7 +262,7 @@ Node *layout_init(NodeAllocator *a) {
             .height_sizing = SIZING_TYPE_FIXED,
         },
         colors[children_size],
-        3
+        4
     );
 
     return root;
@@ -277,9 +290,7 @@ void draw_rectangle(UIElement e, float x, float y, float width, float height) {
 
 void calculate_fit_sizing(Node *node) {
     // first depth post-order
-    if (node == NULL) {
-        return;
-    }
+    assert(node != NULL);
 
     UIElement *value = node->value;
     if (value->size.width_sizing == SIZING_TYPE_FIT) {
@@ -310,9 +321,8 @@ void calculate_fit_sizing(Node *node) {
         n_children += 1;
     }
 
-
     if (value->size.width_sizing == SIZING_TYPE_FIT) {
-        float all_child_gaps = (float)(n_children - 1) * value->child_gap;
+        float all_child_gaps = (float) (n_children - 1) * value->child_gap;
         value->size.width += all_child_gaps;
         value->size.width += value->padding.left + value->padding.right;
     }
@@ -321,27 +331,84 @@ void calculate_fit_sizing(Node *node) {
     }
 }
 
-void calculate_positions_and_draw(Node *parent, Vector2 click, bool *found, float left_offest) {
+void calculate_grow_sizing(Node *node) {
+    assert(node != NULL);
+
+    UIElement *value = node->value;
+    float remaining_width = value->size.width - value->padding.left - value->padding.right;
+
+    // iterate over all children
+    Node *child = node->first_children;
+    size_t n_children = 0;
+    while (child != NULL) {
+        remaining_width -= child->value->size.width;
+        child = child->next_sibling;
+        n_children += 1;
+    }
+    if (n_children > 0) {
+        float all_child_gaps = (float) (n_children - 1) * value->child_gap;
+        remaining_width -= all_child_gaps;
+
+        child = node->first_children;
+        while (child != NULL) {
+            if (child->value->size.width_sizing == SIZING_TYPE_GROW) {
+                child->value->size.width += remaining_width;
+            }
+            child = child->next_sibling;
+        }
+    }
+
+    child = node->first_children;
+    while (child != NULL) {
+        calculate_grow_sizing(child);
+        child = child->next_sibling;
+    }
+
+
+    // float remaining_height = node->value->size.height - node->value->padding.top - node->value->padding.bottom;
+    //
+    // for (size_t i = 0; i < children_size; i++) {
+    //     switch (node->value->children[i].size.width_sizing) {
+    //         case SIZING_TYPE_FIT:
+    //         case SIZING_TYPE_FIXED:
+    //             break;
+    //         case SIZING_TYPE_GROW:
+    //             node->value->children[i].size.width += remaining_width;
+    //             break;
+    //     }
+    //     switch (node->value->children[i].size.height_sizing) {
+    //         case SIZING_TYPE_FIT:
+    //         case SIZING_TYPE_FIXED:
+    //             break;
+    //         case SIZING_TYPE_GROW:
+    //             node->value->children[i].size.height += remaining_height - node->value->children[i].size.height;
+    //             break;
+    //     }
+    // }
+}
+
+void calculate_positions_and_draw(Node *node, Vector2 click, bool *found, float left_offest) {
+    assert(node != NULL);
     draw_rectangle(
-        *parent->value,
-        parent->value->position.x,
-        parent->value->position.y,
-        parent->value->size.width,
-        parent->value->size.height
+        *node->value,
+        node->value->position.x,
+        node->value->position.y,
+        node->value->size.width,
+        node->value->size.height
     );
 
-    if (parent->first_children == NULL) {
+    if (node->first_children == NULL) {
         // lead node do nothing
         return;
     }
 
     // iterate over all children
-    Node *c = parent->first_children;
+    Node *c = node->first_children;
     while (c != NULL) {
         float x, y, height, width;
         x = left_offest + c->value->position.x;
         width = c->value->size.width;
-        y = parent->value->position.y + parent->value->padding.top + c->value->position.y;
+        y = node->value->position.y + node->value->padding.top + c->value->position.y;
         height = c->value->size.height;
 
         {
@@ -367,7 +434,7 @@ void calculate_positions_and_draw(Node *parent, Vector2 click, bool *found, floa
         }
 
         draw_rectangle(*c->value, x, y, width, height);
-        left_offest += c->value->size.width + parent->value->child_gap;
+        left_offest += c->value->size.width + node->value->child_gap;
 
         c = c->next_sibling;
     }
@@ -379,32 +446,7 @@ void draw_uielement(Node *parent, Vector2 click) {
     calculate_fit_sizing(parent);
 
     // 2. grow sizing
-    // float remaining_width = parent->value->size.width - parent->value->padding.left - parent->value->padding.right;
-    // for (size_t i = 0; i < children_size; i++) {
-    //     remaining_width -= parent->value->children[i].size.width;
-    // }
-    // remaining_width -= all_child_gaps;
-    //
-    // float remaining_height = parent->value->size.height - parent->value->padding.top - parent->value->padding.bottom;
-    //
-    // for (size_t i = 0; i < children_size; i++) {
-    //     switch (parent->value->children[i].size.width_sizing) {
-    //         case SIZING_TYPE_FIT:
-    //         case SIZING_TYPE_FIXED:
-    //             break;
-    //         case SIZING_TYPE_GROW:
-    //             parent->value->children[i].size.width += remaining_width;
-    //             break;
-    //     }
-    //     switch (parent->value->children[i].size.height_sizing) {
-    //         case SIZING_TYPE_FIT:
-    //         case SIZING_TYPE_FIXED:
-    //             break;
-    //         case SIZING_TYPE_GROW:
-    //             parent->value->children[i].size.height += remaining_height - parent->value->children[i].size.height;
-    //             break;
-    //     }
-    // }
+    calculate_grow_sizing(parent);
 
     // 3. calculate positions and draw
     bool found = false;
@@ -496,10 +538,10 @@ int main(void) {
         }
 
 
-        // if (IsWindowResized()) {
-        //     root->value->size.width = (float) GetScreenWidth();
-        //     root->value->size.height = (float) GetScreenHeight();
-        // }
+        if (IsWindowResized()) {
+            root->value->size.width = (float) GetScreenWidth();
+            root->value->size.height = (float) GetScreenHeight();
+        }
         draw_frame(root, click);
     }
 
