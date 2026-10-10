@@ -245,8 +245,7 @@ Node *layout_init(NodeAllocator *a) {
         Vector2_ZERO,
         (Size){
             .width_sizing = SIZING_TYPE_GROW,
-            .height = 300,
-            .height_sizing = SIZING_TYPE_FIXED,
+            .height_sizing = SIZING_TYPE_GROW,
         },
         colors[children_size],
         3
@@ -336,6 +335,7 @@ void calculate_grow_sizing(Node *node) {
 
     UIElement *value = node->value;
     float remaining_width = value->size.width - value->padding.left - value->padding.right;
+    float remaining_height = node->value->size.height - node->value->padding.top - node->value->padding.bottom;
 
     // iterate over all children
     Node *child = node->first_children;
@@ -354,6 +354,9 @@ void calculate_grow_sizing(Node *node) {
             if (child->value->size.width_sizing == SIZING_TYPE_GROW) {
                 child->value->size.width += remaining_width;
             }
+            if (child->value->size.height_sizing == SIZING_TYPE_GROW) {
+                child->value->size.height += remaining_height - child->value->size.height;
+            }
             child = child->next_sibling;
         }
     }
@@ -363,28 +366,6 @@ void calculate_grow_sizing(Node *node) {
         calculate_grow_sizing(child);
         child = child->next_sibling;
     }
-
-
-    // float remaining_height = node->value->size.height - node->value->padding.top - node->value->padding.bottom;
-    //
-    // for (size_t i = 0; i < children_size; i++) {
-    //     switch (node->value->children[i].size.width_sizing) {
-    //         case SIZING_TYPE_FIT:
-    //         case SIZING_TYPE_FIXED:
-    //             break;
-    //         case SIZING_TYPE_GROW:
-    //             node->value->children[i].size.width += remaining_width;
-    //             break;
-    //     }
-    //     switch (node->value->children[i].size.height_sizing) {
-    //         case SIZING_TYPE_FIT:
-    //         case SIZING_TYPE_FIXED:
-    //             break;
-    //         case SIZING_TYPE_GROW:
-    //             node->value->children[i].size.height += remaining_height - node->value->children[i].size.height;
-    //             break;
-    //     }
-    // }
 }
 
 void calculate_positions_and_draw(Node *node, Vector2 click, bool *found, float left_offest) {
