@@ -150,29 +150,11 @@ NodeAllocator node_allocator_init() {
 UINode *node_add(
     NodeAllocator *a,
     UINode *parent,
-    Vector2 pos,
-    Size size,
-    Padding padding,
-    Border border,
-    Color border_color,
-    float child_gap,
-    Color bg_color
+    UIElement value
 ) {
     // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
-
     assert(a->len + 1 <= a->cap);
     UINode *n = &a->data[a->len++];
-
-    // store node + element
-    UIElement value = {
-        .position = pos,
-        .size = size,
-        .padding = padding,
-        .border = border,
-        .border_color = border_color,
-        .child_gap = child_gap,
-        .bg_color = bg_color,
-    };
     *n = (UINode){.value = value, .name = get_name()};
 
     if (parent == NULL) {
@@ -197,18 +179,15 @@ void node_add_default(NodeAllocator *a, UINode *root) {
     node_add(
         a,
         root,
-        Vector2_ZERO,
-        (Size){
-            .width = 50,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = 50,
-            .height_sizing = SIZING_TYPE_FIXED,
-        },
-        padding_all(0),
-        border_all(0),
-        BLANK,
-        0,
-        get_color()
+        (UIElement){
+            .size = {
+                .width = 50,
+                .width_sizing = SIZING_TYPE_FIXED,
+                .height = 50,
+                .height_sizing = SIZING_TYPE_FIXED,
+            },
+            .bg_color = get_color(),
+        }
     );
 }
 
@@ -241,65 +220,55 @@ UINode *layout_init(NodeAllocator *a) {
     UINode *root = node_add(
         a,
         NULL,
-        Vector2_ZERO,
-        (Size){
-            .width = WINDOW_WIDTH,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = WINDOW_HEIGHT,
-            .height_sizing = SIZING_TYPE_FIXED,
-        },
-        padding_all(20),
-        border_all(0),
-        BLANK,
-        20,
-        COLOR_BG
+        (UIElement){
+            .size = {
+                .width = WINDOW_WIDTH,
+                .width_sizing = SIZING_TYPE_FIXED,
+                .height = WINDOW_HEIGHT,
+                .height_sizing = SIZING_TYPE_FIXED,
+            },
+            .padding = padding_all(20),
+            .child_gap = 20,
+            .bg_color = COLOR_BG,
+        }
     );
 
     node_add(
         a,
         root,
-        Vector2_ZERO,
-        (Size){
-            .width = 300,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = 300,
-            .height_sizing = SIZING_TYPE_FIXED,
-        },
-        padding_all(0),
-        border_all(0),
-        BLANK,
-        0,
-        get_color()
+        (UIElement){
+            .size = {
+                .width = 300,
+                .width_sizing = SIZING_TYPE_FIXED,
+                .height = 300,
+                .height_sizing = SIZING_TYPE_FIXED,
+            },
+            .bg_color = get_color(),
+        }
     );
     node_add(
         a,
         root,
-        Vector2_ZERO,
-        (Size){
-            .width_sizing = SIZING_TYPE_GROW,
-            .height_sizing = SIZING_TYPE_GROW,
-        },
-        padding_all(0),
-        border_all(0),
-        BLANK,
-        0,
-        get_color()
+        (UIElement){
+            .size = {
+                .width_sizing = SIZING_TYPE_GROW,
+                .height_sizing = SIZING_TYPE_GROW,
+            },
+            .bg_color = get_color(),
+        }
     );
     node_add(
         a,
         root,
-        Vector2_ZERO,
-        (Size){
-            .width = 350,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = 200,
-            .height_sizing = SIZING_TYPE_FIXED,
-        },
-        padding_all(0),
-        border_all(0),
-        BLANK,
-        0,
-        get_color()
+        (UIElement){
+            .size = {
+                .width = 350,
+                .width_sizing = SIZING_TYPE_FIXED,
+                .height = 200,
+                .height_sizing = SIZING_TYPE_FIXED,
+            },
+            .bg_color = get_color(),
+        }
     );
 
     return root;
