@@ -132,7 +132,7 @@ typedef struct UINode {
     struct UINode *next_sibling;
 } UINode;
 
-typedef struct Allocator {
+typedef struct NodeAllocator {
     size_t len;
     size_t cap;
     uint8_t *data;
