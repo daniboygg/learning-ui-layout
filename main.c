@@ -95,40 +95,38 @@ typedef struct UIElement {
     Color bg_color;
 } UIElement;
 
-
-// init tree structure
-typedef struct Node {
+typedef struct UINode {
     int name;
     UIElement *value;
-    struct Node *parent;
-    struct Node *first_children;
-    struct Node *next_sibling;
-} Node;
+    struct UINode *parent;
+    struct UINode *first_children;
+    struct UINode *next_sibling;
+} UINode;
 
 typedef struct Allocator {
     size_t len;
     size_t cap;
-    Node *data;
+    UINode *data;
 } NodeAllocator;
 
 NodeAllocator node_allocator_init() {
     NodeAllocator a = {0};
     a.len = 0;
     a.cap = 1024 * 1024;
-    a.data = malloc(sizeof(Node) * a.cap);
+    a.data = malloc(sizeof(UINode) * a.cap);
     assert(a.data != NULL);
     return a;
 }
 
-Node *node_alloc(NodeAllocator *a) {
+UINode *node_alloc(NodeAllocator *a) {
     assert(a->len + 1 < a->cap);
     return &a->data[a->len++];
 }
 
-Node *node_add(NodeAllocator *a, Node *parent, UIElement *v, int name) {
+UINode *node_add(NodeAllocator *a, UINode *parent, UIElement *v, int name) {
     // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
-    Node *n = node_alloc(a);
-    *n = (Node){.value = v, .name = name};
+    UINode *n = node_alloc(a);
+    *n = (UINode){.value = v, .name = name};
 
     if (parent == NULL) {
         return n;
@@ -138,7 +136,7 @@ Node *node_add(NodeAllocator *a, Node *parent, UIElement *v, int name) {
         parent->first_children = n;
         n->parent = parent;
     } else {
-        Node *c = parent->first_children;
+        UINode *c = parent->first_children;
         while (c->next_sibling != NULL) {
             c = c->next_sibling;
         }
@@ -148,7 +146,7 @@ Node *node_add(NodeAllocator *a, Node *parent, UIElement *v, int name) {
     return n;
 }
 
-void node_print_postorder(Node *node) {
+void node_print_postorder(UINode *node) {
     if (node == NULL) {
         return;
     }
@@ -157,7 +155,7 @@ void node_print_postorder(Node *node) {
         return;
     }
 
-    Node *child = node->first_children;
+    UINode *child = node->first_children;
     while (child->next_sibling != NULL) {
         node_print_postorder(child);
         child = child->next_sibling;
@@ -166,12 +164,8 @@ void node_print_postorder(Node *node) {
 
     printf("%d\n", node->name);
 }
-
-// fini tree structure
-
 // fini ui framework
 
-UIElement children[UI_CHILDREN_LIMIT];
 Color colors[] = {
     {  78, 121, 167, 255 },  // blue
     { 255, 157, 167, 255 },  // pink
@@ -189,7 +183,7 @@ int children_size = 0;
 UIElement *selected = NULL;
 
 
-void layout_add_with_params(NodeAllocator *a, Node *root, Vector2 pos, Size size, Color bg_color, int name) {
+void layout_add_with_params(NodeAllocator *a, UINode *root, Vector2 pos, Size size, Color bg_color, int name) {
     int count = sizeof(colors) / sizeof(colors[0]);
 
     if (children_size >= count) {
@@ -205,7 +199,7 @@ void layout_add_with_params(NodeAllocator *a, Node *root, Vector2 pos, Size size
     node_add(a, root, &children[children_size - 1], name);
 }
 
-void layout_add(NodeAllocator *a, Node *root) {
+void layout_add(NodeAllocator *a, UINode *root) {
     layout_add_with_params(
         a,
         root,
@@ -222,7 +216,7 @@ void layout_add(NodeAllocator *a, Node *root) {
 }
 
 
-Node *layout_init(NodeAllocator *a) {
+UINode *layout_init(NodeAllocator *a) {
     UIElement root_data = (UIElement){
         .size = {
             .width = WINDOW_WIDTH,
@@ -235,7 +229,7 @@ Node *layout_init(NodeAllocator *a) {
         .bg_color = BLUE
     };
     children[children_size++] = root_data;
-    Node *root = node_add(a, NULL, &children[children_size - 1], 1);
+    UINode *root = node_add(a, NULL, &children[children_size - 1], 1);
 
     layout_add_with_params(
         a,
@@ -298,7 +292,7 @@ void draw_rectangle(UIElement e, float x, float y, float width, float height) {
     );
 }
 
-void calculate_fit_sizing(Node *node) {
+void calculate_fit_sizing(UINode *node) {
     // first depth post-order
     assert(node != NULL);
 
@@ -323,7 +317,7 @@ void calculate_fit_sizing(Node *node) {
     }
 
     // iterate over all children
-    Node *child = node->first_children;
+    UINode *child = node->first_children;
     size_t n_children = 0;
     while (child != NULL) {
         calculate_fit_sizing(child);
@@ -341,7 +335,7 @@ void calculate_fit_sizing(Node *node) {
     }
 }
 
-void calculate_grow_sizing(Node *node) {
+void calculate_grow_sizing(UINode *node) {
     assert(node != NULL);
 
     UIElement *value = node->value;
@@ -349,7 +343,7 @@ void calculate_grow_sizing(Node *node) {
     float remaining_height = node->value->size.height - node->value->padding.top - node->value->padding.bottom;
 
     // iterate over all children
-    Node *child = node->first_children;
+    UINode *child = node->first_children;
     size_t n_children = 0;
     while (child != NULL) {
         remaining_width -= child->value->size.width;
@@ -379,7 +373,7 @@ void calculate_grow_sizing(Node *node) {
     }
 }
 
-void calculate_positions_and_draw(Node *node, Vector2 click, bool *found, float left_offest) {
+void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, float left_offest) {
     assert(node != NULL);
     draw_rectangle(
         *node->value,
@@ -395,7 +389,7 @@ void calculate_positions_and_draw(Node *node, Vector2 click, bool *found, float 
     }
 
     // iterate over all children
-    Node *c = node->first_children;
+    UINode *c = node->first_children;
     while (c != NULL) {
         float x, y, height, width;
         x = left_offest + c->value->position.x;
@@ -433,7 +427,7 @@ void calculate_positions_and_draw(Node *node, Vector2 click, bool *found, float 
 }
 
 
-void draw_uielement(Node *parent, Vector2 click) {
+void draw_uielement(UINode *parent, Vector2 click) {
     // 1. fit sizing
     calculate_fit_sizing(parent);
 
@@ -455,7 +449,7 @@ void draw_uielement(Node *parent, Vector2 click) {
 }
 
 
-void draw_frame(Node *root, Vector2 click) {
+void draw_frame(UINode *root, Vector2 click) {
     BeginDrawing();
     ClearBackground(DARKGRAY);
 
@@ -496,7 +490,7 @@ int main(void) {
     Vector2 click = Vector2_ZERO;
 
     NodeAllocator a = node_allocator_init();
-    Node *root = layout_init(&a);
+    UINode *root = layout_init(&a);
 
     printf("==================\n");
     node_print_postorder(root);
