@@ -66,20 +66,32 @@ typedef struct {
     float value;
 } SizingAxis;
 
+SizingAxis sizingaxis_fixed(float size) {
+    return (SizingAxis){.type = SIZING_TYPE_FIXED, .value = size};
+}
+
+SizingAxis sizingaxis_fit(void) {
+    return (SizingAxis){.type = SIZING_TYPE_FIT};
+}
+
+SizingAxis sizingaxis_grow(void) {
+    return (SizingAxis){.type = SIZING_TYPE_GROW};
+}
+
 typedef struct {
     SizingAxis x, y;
 } Sizing;
 
-SizingAxis sizing_fixed(float size) {
-    return (SizingAxis){.type = SIZING_TYPE_FIXED, .value = size};
+Sizing sizing_fixed(float x, float y) {
+    return (Sizing){.x = sizingaxis_fixed(x), .y = sizingaxis_fixed(y)};
 }
 
-SizingAxis sizing_fit() {
-    return (SizingAxis){.type = SIZING_TYPE_FIT};
+Sizing sizing_fit(void) {
+    return (Sizing){.x = sizingaxis_fit(), .y = sizingaxis_fit()};
 }
 
-SizingAxis sizing_grow() {
-    return (SizingAxis){.type = SIZING_TYPE_GROW};
+Sizing sizing_grow(void) {
+    return (Sizing){.x = sizingaxis_grow(), .y = sizingaxis_grow()};
 }
 
 typedef struct {
@@ -201,10 +213,7 @@ void node_add_default(NodeAllocator *a, UINode *root) {
         a,
         root,
         (UIElement){
-            .sizing = {
-                .x = sizing_fixed(50),
-                .y = sizing_fixed(50),
-            },
+            .sizing = sizing_fixed(50, 50),
             .bg_color = get_color(),
         }
     );
@@ -240,10 +249,7 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         NULL,
         (UIElement){
-            .sizing = {
-                .x = sizing_fixed(WINDOW_WIDTH),
-                .y = sizing_fixed(WINDOW_HEIGHT),
-            },
+            .sizing = sizing_fixed(WINDOW_WIDTH, WINDOW_HEIGHT),
             .padding = padding_all(20),
             .child_gap = 20,
             .bg_color = COLOR_BG,
@@ -254,10 +260,7 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .sizing = {
-                .x = sizing_fixed(300),
-                .y = sizing_fixed(300),
-            },
+            .sizing = sizing_fixed(300, 300),
             .bg_color = get_color(),
         }
     );
@@ -265,10 +268,7 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .sizing = {
-                .x = sizing_grow(),
-                .y = sizing_grow(),
-            },
+            .sizing = sizing_grow(),
             .bg_color = get_color(),
         }
     );
@@ -276,10 +276,7 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .sizing = {
-                .x = sizing_fixed(350),
-                .y = sizing_fixed(200),
-            },
+            .sizing = sizing_fixed(350, 200),
             .bg_color = get_color(),
         }
     );
@@ -547,8 +544,10 @@ int main(void) {
 
 
         if (IsWindowResized()) {
-            root->value.sizing.x = sizing_fixed((float) GetScreenWidth());
-            root->value.sizing.y = sizing_fixed((float) GetScreenHeight());
+            root->value.sizing = sizing_fixed(
+                (float) GetScreenWidth(),
+                (float) GetScreenHeight()
+            );
         }
         draw_frame(root, click);
     }
