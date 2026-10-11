@@ -17,7 +17,27 @@ FetchContent_MakeAvailable(raylib)
 add_executable(learning_ui_layout
         main.c
 )
-target_compile_options(learning_ui_layout PRIVATE -Wall -Wextra -Werror=switch)
+target_compile_options(learning_ui_layout PRIVATE
+        -Wall
+        -Wextra
+        -Wshadow                 # a local variable hides another one
+        -Wconversion -Wno-sign-conversion  # silent float->int, int->short loss
+        -Wdouble-promotion       # float silently becomes double (raylib uses float)
+        -Wvla
+        -Wformat=2
+        -Wundef
+        -Werror=switch
+        -Werror=implicit-function-declaration
+        -Werror=return-type
+)
+
+# AddressSanitizer with the GCC defaults: stops at the first memory error, reports leaks at exit.
+# Off by default because it slows the start of the program. Turn on with -DUSE_ASAN=ON.
+option(USE_ASAN "Build with AddressSanitizer" OFF)
+if(USE_ASAN)
+    target_compile_options(learning_ui_layout PRIVATE -fsanitize=address -g)
+    target_link_options(learning_ui_layout PRIVATE -fsanitize=address)
+endif()
 target_link_libraries(learning_ui_layout raylib)
 
 add_custom_command(TARGET learning_ui_layout POST_BUILD

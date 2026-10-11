@@ -84,6 +84,35 @@ Border border_all(float value) {
     return b;
 }
 
+#define COLOR_BG ((Color){  78, 121, 167, 255 })
+// clang-format off
+Color colors[] = {
+    { 255, 157, 167, 255 },  // pink
+    { 237, 201,  72, 255 },  // yellow
+    { 118, 183, 178, 255 },  // teal
+    { 242, 142,  43, 255 },  // orange
+    { 225,  87,  89, 255 },  // red
+    {  89, 161,  79, 255 },  // green
+    { 176, 122, 161, 255 },  // purple
+    { 156, 117,  95, 255 },  // brown
+    { 186, 176, 172, 255 },  // gray
+};
+// clang-format on
+int current_color = 0;
+
+Color get_color() {
+    int count = sizeof(colors) / sizeof(colors[0]);
+    Color c = colors[current_color];
+    current_color = (current_color + 1) % count;
+    return c;
+}
+
+int current_name = 1;
+
+int get_name() {
+    return current_name++;
+}
+
 
 typedef struct UIElement {
     Vector2 position;
@@ -106,27 +135,50 @@ typedef struct UINode {
 typedef struct Allocator {
     size_t len;
     size_t cap;
-    UINode *data;
+    uint8_t *data;
 } NodeAllocator;
 
 NodeAllocator node_allocator_init() {
     NodeAllocator a = {0};
     a.len = 0;
-    a.cap = 1024 * 1024;
-    a.data = malloc(sizeof(UINode) * a.cap);
+    a.cap = (sizeof(UINode) + sizeof(UIElement)) * 1024 * 1024;
+    a.data = malloc(a.cap);
     assert(a.data != NULL);
     return a;
 }
 
-UINode *node_alloc(NodeAllocator *a) {
-    assert(a->len + 1 < a->cap);
-    return &a->data[a->len++];
-}
-
-UINode *node_add(NodeAllocator *a, UINode *parent, UIElement *v, int name) {
+UINode *node_add(
+    NodeAllocator *a,
+    UINode *parent,
+    Vector2 pos,
+    Size size,
+    Padding padding,
+    Border border,
+    Color border_color,
+    float child_gap,
+    Color bg_color
+) {
     // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
-    UINode *n = node_alloc(a);
-    *n = (UINode){.value = v, .name = name};
+
+    // reserve space for node and element
+    size_t alloc_size = sizeof(UINode) + sizeof(UIElement);
+    assert(a->len + alloc_size <= a->cap);
+    uint8_t *p = &a->data[a->len];
+    a->len += alloc_size;
+
+    // store node + element
+    UIElement *value = (void *)(p + sizeof(UINode));
+    *value = (UIElement){
+        .position = pos,
+        .size = size,
+        .padding = padding,
+        .border = border,
+        .border_color = border_color,
+        .child_gap = child_gap,
+        .bg_color = bg_color,
+    };
+    UINode *n = (void *)p;
+    *n = (UINode){.value = value, .name = get_name()};
 
     if (parent == NULL) {
         return n;
@@ -144,6 +196,25 @@ UINode *node_add(NodeAllocator *a, UINode *parent, UIElement *v, int name) {
         n->parent = parent;
     }
     return n;
+}
+
+void node_add_default(NodeAllocator *a, UINode *root) {
+    node_add(
+        a,
+        root,
+        Vector2_ZERO,
+        (Size){
+            .width = 50,
+            .width_sizing = SIZING_TYPE_FIXED,
+            .height = 50,
+            .height_sizing = SIZING_TYPE_FIXED,
+        },
+        padding_all(0),
+        border_all(0),
+        BLANK,
+        0,
+        get_color()
+    );
 }
 
 void node_print_postorder(UINode *node) {
@@ -164,74 +235,32 @@ void node_print_postorder(UINode *node) {
 
     printf("%d\n", node->name);
 }
+
 // fini ui framework
 
-Color colors[] = {
-    {  78, 121, 167, 255 },  // blue
-    { 255, 157, 167, 255 },  // pink
-    { 237, 201,  72, 255 },  // yellow
-    { 118, 183, 178, 255 },  // teal
-    { 242, 142,  43, 255 },  // orange
-    { 225,  87,  89, 255 },  // red
-    {  89, 161,  79, 255 },  // green
-    { 176, 122, 161, 255 },  // purple
-    { 156, 117,  95, 255 },  // brown
-    { 186, 176, 172, 255 },  // gray
-};
-int children_size = 0;
 
 UIElement *selected = NULL;
 
 
-void layout_add_with_params(NodeAllocator *a, UINode *root, Vector2 pos, Size size, Color bg_color, int name) {
-    int count = sizeof(colors) / sizeof(colors[0]);
-
-    if (children_size >= count) {
-        return;
-    }
-
-    children[children_size] = (UIElement){
-        .position = pos,
-        .size = size,
-        .bg_color = bg_color,
-    };
-    children_size++;
-    node_add(a, root, &children[children_size - 1], name);
-}
-
-void layout_add(NodeAllocator *a, UINode *root) {
-    layout_add_with_params(
+UINode *layout_init(NodeAllocator *a) {
+    UINode *root = node_add(
         a,
-        root,
+        NULL,
         Vector2_ZERO,
         (Size){
-            .width = 50,
-            .width_sizing = SIZING_TYPE_FIXED,
-            .height = 50,
-            .height_sizing = SIZING_TYPE_FIXED,
-        },
-        colors[children_size],
-        children_size
-    );
-}
-
-
-UINode *layout_init(NodeAllocator *a) {
-    UIElement root_data = (UIElement){
-        .size = {
             .width = WINDOW_WIDTH,
             .width_sizing = SIZING_TYPE_FIXED,
             .height = WINDOW_HEIGHT,
             .height_sizing = SIZING_TYPE_FIXED,
         },
-        .padding = padding_all(20),
-        .child_gap = 20,
-        .bg_color = BLUE
-    };
-    children[children_size++] = root_data;
-    UINode *root = node_add(a, NULL, &children[children_size - 1], 1);
+        padding_all(20),
+        border_all(0),
+        BLANK,
+        20,
+        COLOR_BG
+    );
 
-    layout_add_with_params(
+    node_add(
         a,
         root,
         Vector2_ZERO,
@@ -241,10 +270,13 @@ UINode *layout_init(NodeAllocator *a) {
             .height = 300,
             .height_sizing = SIZING_TYPE_FIXED,
         },
-        colors[children_size],
-        2
+        padding_all(0),
+        border_all(0),
+        BLANK,
+        0,
+        get_color()
     );
-    layout_add_with_params(
+    node_add(
         a,
         root,
         Vector2_ZERO,
@@ -252,10 +284,13 @@ UINode *layout_init(NodeAllocator *a) {
             .width_sizing = SIZING_TYPE_GROW,
             .height_sizing = SIZING_TYPE_GROW,
         },
-        colors[children_size],
-        3
+        padding_all(0),
+        border_all(0),
+        BLANK,
+        0,
+        get_color()
     );
-    layout_add_with_params(
+    node_add(
         a,
         root,
         Vector2_ZERO,
@@ -265,8 +300,11 @@ UINode *layout_init(NodeAllocator *a) {
             .height = 200,
             .height_sizing = SIZING_TYPE_FIXED,
         },
-        colors[children_size],
-        4
+        padding_all(0),
+        border_all(0),
+        BLANK,
+        0,
+        get_color()
     );
 
     return root;
@@ -511,7 +549,7 @@ int main(void) {
         }
 
         if (IsKeyPressed(KEY_F)) {
-            layout_add(&a, root);
+            node_add_default(&a, root);
         }
         // TODO
         // if (IsKeyPressed(KEY_G)) {
