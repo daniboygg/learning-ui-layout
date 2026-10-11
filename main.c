@@ -44,7 +44,7 @@ void draw_text(const char *text, Vector2 position) {
         position,
         FONT_SIZE,
         0,
-        WHITE
+        BLACK
     );
 }
 
@@ -314,15 +314,16 @@ UINode *layout_init(NodeAllocator *a) {
 // }
 
 
-void draw_rectangle(UIElement e, float x, float y, float width, float height) {
-    DrawRectangle((int) x, (int) y, (int) width, (int) height, e.border_color);
+void draw_rectangle(UINode node, float x, float y, float width, float height) {
+    DrawRectangle((int) x, (int) y, (int) width, (int) height, node.value.border_color);
     DrawRectangle(
-        (int) (x + e.border.left),
-        (int) (y + e.border.top),
-        (int) (width - e.border.left - e.border.right),
-        (int) (height - e.border.top - e.border.bottom),
-        e.bg_color
+        (int) (x + node.value.border.left),
+        (int) (y + node.value.border.top),
+        (int) (width - node.value.border.left - node.value.border.right),
+        (int) (height - node.value.border.top - node.value.border.bottom),
+        node.value.bg_color
     );
+    draw_text(TextFormat("%d", node.name), (Vector2){.x = x, .y = y});
 }
 
 void calculate_fit_sizing(UINode *node) {
@@ -409,7 +410,7 @@ void calculate_grow_sizing(UINode *node) {
 void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, float left_offest) {
     assert(node != NULL);
     draw_rectangle(
-        node->value,
+        *node,
         node->value.position.x,
         node->value.position.y,
         node->value.size.width,
@@ -452,7 +453,7 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
             }
         }
 
-        draw_rectangle(c->value, x, y, width, height);
+        draw_rectangle(*c, x, y, width, height);
         left_offest += c->value.size.width + node->value.child_gap;
 
         c = c->next_sibling;
@@ -493,7 +494,7 @@ void draw_frame(UINode *root, Vector2 click) {
     int32_t height = GetScreenHeight();
     draw_text(
         TextFormat("%d x %d", width, height),
-        (Vector2){.x = 0, .y = 0}
+        (Vector2){.x = 20, .y = 0}
     );
 
     EndDrawing();
