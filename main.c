@@ -62,8 +62,28 @@ typedef enum SIZING_TYPE {
 } SIZING_TYPE;
 
 typedef struct {
+    SIZING_TYPE type;
+    float value;
+} SizingAxis;
+
+typedef struct {
+    SizingAxis x, y;
+} Sizing;
+
+SizingAxis sizing_fixed(float size) {
+    return (SizingAxis){.type = SIZING_TYPE_FIXED, .value = size};
+}
+
+SizingAxis sizing_fit() {
+    return (SizingAxis){.type = SIZING_TYPE_FIT};
+}
+
+SizingAxis sizing_grow() {
+    return (SizingAxis){.type = SIZING_TYPE_GROW};
+}
+
+typedef struct {
     float width, height;
-    SIZING_TYPE width_sizing, height_sizing;
 } Size;
 
 typedef struct {
@@ -116,6 +136,7 @@ int get_name() {
 
 typedef struct UIElement {
     Vector2 position;
+    Sizing sizing;
     Size size;
     Padding padding;
     Border border;
@@ -180,11 +201,9 @@ void node_add_default(NodeAllocator *a, UINode *root) {
         a,
         root,
         (UIElement){
-            .size = {
-                .width = 50,
-                .width_sizing = SIZING_TYPE_FIXED,
-                .height = 50,
-                .height_sizing = SIZING_TYPE_FIXED,
+            .sizing = {
+                .x = sizing_fixed(50),
+                .y = sizing_fixed(50),
             },
             .bg_color = get_color(),
         }
@@ -221,11 +240,9 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         NULL,
         (UIElement){
-            .size = {
-                .width = WINDOW_WIDTH,
-                .width_sizing = SIZING_TYPE_FIXED,
-                .height = WINDOW_HEIGHT,
-                .height_sizing = SIZING_TYPE_FIXED,
+            .sizing = {
+                .x = sizing_fixed(WINDOW_WIDTH),
+                .y = sizing_fixed(WINDOW_HEIGHT),
             },
             .padding = padding_all(20),
             .child_gap = 20,
@@ -237,11 +254,9 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .size = {
-                .width = 300,
-                .width_sizing = SIZING_TYPE_FIXED,
-                .height = 300,
-                .height_sizing = SIZING_TYPE_FIXED,
+            .sizing = {
+                .x = sizing_fixed(300),
+                .y = sizing_fixed(300),
             },
             .bg_color = get_color(),
         }
@@ -250,9 +265,9 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .size = {
-                .width_sizing = SIZING_TYPE_GROW,
-                .height_sizing = SIZING_TYPE_GROW,
+            .sizing = {
+                .x = sizing_grow(),
+                .y = sizing_grow(),
             },
             .bg_color = get_color(),
         }
@@ -261,11 +276,9 @@ UINode *layout_init(NodeAllocator *a) {
         a,
         root,
         (UIElement){
-            .size = {
-                .width = 350,
-                .width_sizing = SIZING_TYPE_FIXED,
-                .height = 200,
-                .height_sizing = SIZING_TYPE_FIXED,
+            .sizing = {
+                .x = sizing_fixed(350),
+                .y = sizing_fixed(200),
             },
             .bg_color = get_color(),
         }
@@ -300,20 +313,26 @@ void calculate_fit_sizing(UINode *node) {
     assert(node != NULL);
 
     UIElement *value = &node->value;
-    if (value->size.width_sizing == SIZING_TYPE_FIT) {
+    if (value->sizing.x.type == SIZING_TYPE_FIXED) {
+        value->size.width = value->sizing.x.value;
+    }
+    if (value->sizing.y.type == SIZING_TYPE_FIXED) {
+        value->size.height = value->sizing.y.value;
+    }
+    if (value->sizing.x.type == SIZING_TYPE_FIT) {
         value->size.width = 0;
     }
-    if (value->size.height_sizing == SIZING_TYPE_FIT) {
+    if (value->sizing.y.type == SIZING_TYPE_FIT) {
         value->size.height = 0;
     }
 
     // leaf node
     if (node->first_children == NULL && node->parent != NULL) {
         UIElement *parent = &node->parent->value;
-        if (parent->size.width_sizing == SIZING_TYPE_FIT) {
+        if (parent->sizing.x.type == SIZING_TYPE_FIT) {
             parent->size.width += value->size.width;
         }
-        if (parent->size.height_sizing == SIZING_TYPE_FIT) {
+        if (parent->sizing.y.type == SIZING_TYPE_FIT) {
             parent->size.height = fmaxf(parent->size.height, value->size.height);
         }
         return;
@@ -328,12 +347,12 @@ void calculate_fit_sizing(UINode *node) {
         n_children += 1;
     }
 
-    if (value->size.width_sizing == SIZING_TYPE_FIT) {
+    if (value->sizing.x.type == SIZING_TYPE_FIT) {
         float all_child_gaps = (float) (n_children - 1) * value->child_gap;
         value->size.width += all_child_gaps;
         value->size.width += value->padding.left + value->padding.right;
     }
-    if (value->size.height_sizing == SIZING_TYPE_FIT) {
+    if (value->sizing.y.type == SIZING_TYPE_FIT) {
         value->size.height += value->padding.top + value->padding.bottom;
     }
 }
@@ -359,10 +378,10 @@ void calculate_grow_sizing(UINode *node) {
 
         child = node->first_children;
         while (child != NULL) {
-            if (child->value.size.width_sizing == SIZING_TYPE_GROW) {
+            if (child->value.sizing.x.type == SIZING_TYPE_GROW) {
                 child->value.size.width += remaining_width;
             }
-            if (child->value.size.height_sizing == SIZING_TYPE_GROW) {
+            if (child->value.sizing.y.type == SIZING_TYPE_GROW) {
                 child->value.size.height += remaining_height - child->value.size.height;
             }
             child = child->next_sibling;
@@ -478,10 +497,10 @@ void change_size(UINode *node, GROW_DIRECTION direction, float amount) {
     if (node == NULL) { return; }
     switch (direction) {
         case GROW_DIR_WIDTH:
-            node->value.size.width = fmaxf(node->value.size.width + amount, 0);
+            node->value.sizing.x.value = fmaxf(node->value.sizing.x.value + amount, 0);
             break;
         case GROW_DIR_HEIGHT:
-            node->value.size.height = fmaxf(node->value.size.height + amount, 0);
+            node->value.sizing.y.value = fmaxf(node->value.sizing.y.value + amount, 0);
             break;
     }
 }
@@ -528,8 +547,8 @@ int main(void) {
 
 
         if (IsWindowResized()) {
-            root->value.size.width = (float) GetScreenWidth();
-            root->value.size.height = (float) GetScreenHeight();
+            root->value.sizing.x = sizing_fixed((float) GetScreenWidth());
+            root->value.sizing.y = sizing_fixed((float) GetScreenHeight());
         }
         draw_frame(root, click);
     }
