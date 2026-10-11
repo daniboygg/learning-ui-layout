@@ -126,7 +126,7 @@ typedef struct UIElement {
 
 typedef struct UINode {
     int name;
-    UIElement *value;
+    UIElement value;
     struct UINode *parent;
     struct UINode *first_children;
     struct UINode *next_sibling;
@@ -135,13 +135,13 @@ typedef struct UINode {
 typedef struct NodeAllocator {
     size_t len;
     size_t cap;
-    uint8_t *data;
+    UINode *data;
 } NodeAllocator;
 
 NodeAllocator node_allocator_init() {
     NodeAllocator a = {0};
     a.len = 0;
-    a.cap = (sizeof(UINode) + sizeof(UIElement)) * 1024 * 1024;
+    a.cap = (sizeof(UINode)) * 1024 * 1024;
     a.data = malloc(a.cap);
     assert(a.data != NULL);
     return a;
@@ -160,15 +160,11 @@ UINode *node_add(
 ) {
     // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
 
-    // reserve space for node and element
-    size_t alloc_size = sizeof(UINode) + sizeof(UIElement);
-    assert(a->len + alloc_size <= a->cap);
-    uint8_t *p = &a->data[a->len];
-    a->len += alloc_size;
+    assert(a->len + 1 <= a->cap);
+    UINode *n = &a->data[a->len++];
 
     // store node + element
-    UIElement *value = (void *)(p + sizeof(UINode));
-    *value = (UIElement){
+    UIElement value = {
         .position = pos,
         .size = size,
         .padding = padding,
@@ -177,7 +173,6 @@ UINode *node_add(
         .child_gap = child_gap,
         .bg_color = bg_color,
     };
-    UINode *n = (void *)p;
     *n = (UINode){.value = value, .name = get_name()};
 
     if (parent == NULL) {
@@ -239,7 +234,7 @@ void node_print_postorder(UINode *node) {
 // fini ui framework
 
 
-UIElement *selected = NULL;
+UINode *selected = NULL;
 
 
 UINode *layout_init(NodeAllocator *a) {
@@ -334,7 +329,7 @@ void calculate_fit_sizing(UINode *node) {
     // first depth post-order
     assert(node != NULL);
 
-    UIElement *value = node->value;
+    UIElement *value = &node->value;
     if (value->size.width_sizing == SIZING_TYPE_FIT) {
         value->size.width = 0;
     }
@@ -344,7 +339,7 @@ void calculate_fit_sizing(UINode *node) {
 
     // leaf node
     if (node->first_children == NULL && node->parent != NULL) {
-        UIElement *parent = node->parent->value;
+        UIElement *parent = &node->parent->value;
         if (parent->size.width_sizing == SIZING_TYPE_FIT) {
             parent->size.width += value->size.width;
         }
@@ -376,15 +371,15 @@ void calculate_fit_sizing(UINode *node) {
 void calculate_grow_sizing(UINode *node) {
     assert(node != NULL);
 
-    UIElement *value = node->value;
+    UIElement *value = &node->value;
     float remaining_width = value->size.width - value->padding.left - value->padding.right;
-    float remaining_height = node->value->size.height - node->value->padding.top - node->value->padding.bottom;
+    float remaining_height = node->value.size.height - node->value.padding.top - node->value.padding.bottom;
 
     // iterate over all children
     UINode *child = node->first_children;
     size_t n_children = 0;
     while (child != NULL) {
-        remaining_width -= child->value->size.width;
+        remaining_width -= child->value.size.width;
         child = child->next_sibling;
         n_children += 1;
     }
@@ -394,11 +389,11 @@ void calculate_grow_sizing(UINode *node) {
 
         child = node->first_children;
         while (child != NULL) {
-            if (child->value->size.width_sizing == SIZING_TYPE_GROW) {
-                child->value->size.width += remaining_width;
+            if (child->value.size.width_sizing == SIZING_TYPE_GROW) {
+                child->value.size.width += remaining_width;
             }
-            if (child->value->size.height_sizing == SIZING_TYPE_GROW) {
-                child->value->size.height += remaining_height - child->value->size.height;
+            if (child->value.size.height_sizing == SIZING_TYPE_GROW) {
+                child->value.size.height += remaining_height - child->value.size.height;
             }
             child = child->next_sibling;
         }
@@ -414,11 +409,11 @@ void calculate_grow_sizing(UINode *node) {
 void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, float left_offest) {
     assert(node != NULL);
     draw_rectangle(
-        *node->value,
-        node->value->position.x,
-        node->value->position.y,
-        node->value->size.width,
-        node->value->size.height
+        node->value,
+        node->value.position.x,
+        node->value.position.y,
+        node->value.size.width,
+        node->value.size.height
     );
 
     if (node->first_children == NULL) {
@@ -430,10 +425,10 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
     UINode *c = node->first_children;
     while (c != NULL) {
         float x, y, height, width;
-        x = left_offest + c->value->position.x;
-        width = c->value->size.width;
-        y = node->value->position.y + node->value->padding.top + c->value->position.y;
-        height = c->value->size.height;
+        x = left_offest + c->value.position.x;
+        width = c->value.size.width;
+        y = node->value.position.y + node->value.padding.top + c->value.position.y;
+        height = c->value.size.height;
 
         {
             if (!Vector2Equals(click, Vector2_ZERO) && CheckCollisionPointRec(
@@ -445,20 +440,20 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
                         .height = height,
                     })
             ) {
-                selected = c->value;
+                selected = c;
                 *found = true;
             }
 
-            if (c->value == selected) {
-                c->value->border = border_all(3);
-                c->value->border_color = BLACK;
+            if (c == selected) {
+                c->value.border = border_all(3);
+                c->value.border_color = BLACK;
             } else {
-                c->value->border = border_all(0);
+                c->value.border = border_all(0);
             }
         }
 
-        draw_rectangle(*c->value, x, y, width, height);
-        left_offest += c->value->size.width + node->value->child_gap;
+        draw_rectangle(c->value, x, y, width, height);
+        left_offest += c->value.size.width + node->value.child_gap;
 
         c = c->next_sibling;
     }
@@ -478,7 +473,7 @@ void draw_uielement(UINode *parent, Vector2 click) {
         parent,
         click,
         &found,
-        parent->value->position.x + parent->value->padding.left
+        parent->value.position.x + parent->value.padding.left
     );
 
     if (!Vector2Equals(click, Vector2_ZERO) && !found) {
@@ -509,14 +504,14 @@ typedef enum GROW_DIR {
     GROW_DIR_HEIGHT,
 } GROW_DIRECTION;
 
-void change_size(UIElement *e, GROW_DIRECTION direction, float amount) {
-    if (e == NULL) { return; }
+void change_size(UINode *node, GROW_DIRECTION direction, float amount) {
+    if (node == NULL) { return; }
     switch (direction) {
         case GROW_DIR_WIDTH:
-            e->size.width = fmaxf(e->size.width + amount, 0);
+            node->value.size.width = fmaxf(node->value.size.width + amount, 0);
             break;
         case GROW_DIR_HEIGHT:
-            e->size.height = fmaxf(e->size.height + amount, 0);
+            node->value.size.height = fmaxf(node->value.size.height + amount, 0);
             break;
     }
 }
@@ -563,8 +558,8 @@ int main(void) {
 
 
         if (IsWindowResized()) {
-            root->value->size.width = (float) GetScreenWidth();
-            root->value->size.height = (float) GetScreenHeight();
+            root->value.size.width = (float) GetScreenWidth();
+            root->value.size.height = (float) GetScreenHeight();
         }
         draw_frame(root, click);
     }
