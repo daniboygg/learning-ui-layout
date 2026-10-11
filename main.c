@@ -141,8 +141,8 @@ typedef struct NodeAllocator {
 NodeAllocator node_allocator_init() {
     NodeAllocator a = {0};
     a.len = 0;
-    a.cap = (sizeof(UINode)) * 1024 * 1024;
-    a.data = malloc(a.cap);
+    a.cap = 1024 * 1024;
+    a.data = malloc(sizeof(UINode) * a.cap);
     assert(a.data != NULL);
     return a;
 }
