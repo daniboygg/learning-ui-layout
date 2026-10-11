@@ -19,7 +19,7 @@
 
 Font ui_font;
 
-void init() {
+void init(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
     InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "UI Layout");
     SetWindowMinSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT);
@@ -28,12 +28,12 @@ void init() {
     ui_font = LoadFontEx("assets/JetBrainsMono-Bold.ttf", FONT_SIZE, NULL, 0);
 }
 
-void fini() {
+void fini(void) {
     UnloadFont(ui_font);
     CloseWindow();
 }
 
-bool quit_pressed() {
+bool quit_pressed(void) {
     return WindowShouldClose() || IsKeyPressed(KEY_CAPS_LOCK);
 }
 
@@ -132,7 +132,7 @@ Color colors[] = {
 // clang-format on
 int current_color = 0;
 
-Color get_color() {
+Color get_color(void) {
     int count = sizeof(colors) / sizeof(colors[0]);
     Color c = colors[current_color];
     current_color = (current_color + 1) % count;
@@ -141,7 +141,7 @@ Color get_color() {
 
 int current_name = 1;
 
-int get_name() {
+int get_name(void) {
     return current_name++;
 }
 
@@ -171,7 +171,7 @@ typedef struct NodeAllocator {
     UINode *data;
 } NodeAllocator;
 
-NodeAllocator node_allocator_init() {
+NodeAllocator node_allocator_init(void) {
     NodeAllocator a = {0};
     a.len = 0;
     a.cap = 1024 * 1024;
