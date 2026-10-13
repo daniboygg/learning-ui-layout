@@ -9,7 +9,7 @@
 #include "raylib.h"
 #include "raymath.h"
 
-// Same initial size as the learning-chip8 window (64 * 15 + 640, 32 * 15 + 400).
+// init main raylib functions
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 #define WINDOW_MIN_WIDTH 320
@@ -47,6 +47,8 @@ void draw_text(const char *text, Vector2 position) {
         BLACK
     );
 }
+
+// fini main raylib functions
 
 
 // init ui framework
@@ -183,12 +185,13 @@ NodeAllocator node_allocator_init(void) {
 UINode *node_add(
     NodeAllocator *a,
     UINode *parent,
-    UIElement value
+    UIElement value,
+    int name
 ) {
     // https://en.wikipedia.org/wiki/Left-child_right-sibling_binary_tree
     assert(a->len + 1 <= a->cap);
     UINode *n = &a->data[a->len++];
-    *n = (UINode){.value = value, .name = get_name()};
+    *n = (UINode){.value = value, .name = name};
 
     if (parent == NULL) {
         return n;
@@ -208,14 +211,15 @@ UINode *node_add(
     return n;
 }
 
-void node_add_default(NodeAllocator *a, UINode *root) {
+void node_add_default(NodeAllocator *a, UINode *root, Sizing sizing, Color color, int name) {
     node_add(
         a,
         root,
         (UIElement){
-            .sizing = sizing_fixed(50, 50),
-            .bg_color = get_color(),
-        }
+            .sizing = sizing,
+            .bg_color = color,
+        },
+        name
     );
 }
 
@@ -240,49 +244,69 @@ void node_print_postorder(UINode *node) {
 
 // fini ui framework
 
+// init main app data
 
-UINode *selected = NULL;
+typedef struct Input {
+    Size screen_size;
+    Vector2 mouse;
+    bool left_click;
+    bool add_box;
+    bool remove_box;
+} Input;
 
+typedef struct Box {
+    Color bg_color;
+    Sizing sizing;
+} Box;
 
-UINode *layout_init(NodeAllocator *a) {
-    UINode *root = node_add(
-        a,
-        NULL,
-        (UIElement){
-            .sizing = sizing_fixed(WINDOW_WIDTH, WINDOW_HEIGHT),
-            .padding = padding_all(20),
-            .child_gap = 20,
-            .bg_color = COLOR_BG,
-        }
-    );
+#define APP_SELECTION_NO (-1)
 
-    node_add(
-        a,
-        root,
-        (UIElement){
-            .sizing = sizing_fixed(300, 300),
-            .bg_color = get_color(),
-        }
-    );
-    node_add(
-        a,
-        root,
-        (UIElement){
-            .sizing = sizing_grow(),
-            .bg_color = get_color(),
-        }
-    );
-    node_add(
-        a,
-        root,
-        (UIElement){
-            .sizing = sizing_fixed(350, 200),
-            .bg_color = get_color(),
-        }
-    );
+typedef struct App {
+    int selection; // APP_SELECTION_NO empty
+    Box boxes[64];
+    int boxes_len;
+} App;
 
-    return root;
+App app_init() {
+    App app = {0};
+    return app;
 }
+
+int app_add_box(App *app, Box box) {
+    assert(app->boxes_len < 64);
+    app->boxes[app->boxes_len++] = box;
+    return app->boxes_len - 1;
+}
+
+void app_pop_box(App *app) {
+    assert(app->boxes_len -1 >= 0);
+    app->boxes_len -= 1;
+}
+
+Box *app_get_box(App *app, int name) {
+    return &app->boxes[name];
+}
+
+void app_select(App *app, int name) {
+    app->selection = name;
+}
+
+Box *app_get_selected(App *app) {
+    if (app->selection == APP_SELECTION_NO) { return NULL; }
+    return &app->boxes[app->selection];
+}
+
+bool app_is_selected(App *app, int name) {
+    if (app->selection == APP_SELECTION_NO) { return false; }
+    return app->selection == name;
+}
+
+void app_deselect(App *app) {
+    app->selection = APP_SELECTION_NO;
+}
+
+// fini main app data
+
 
 // TODO
 // void layout_remove(Node *_) {
@@ -392,7 +416,7 @@ void calculate_grow_sizing(UINode *node) {
     }
 }
 
-void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, float left_offest) {
+void calculate_positions_and_draw(UINode *node, App *app, Input input, bool *found, float left_offest) {
     assert(node != NULL);
     draw_rectangle(
         *node,
@@ -417,8 +441,8 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
         height = c->value.size.height;
 
         {
-            if (!Vector2Equals(click, Vector2_ZERO) && CheckCollisionPointRec(
-                    click,
+            if (input.left_click && CheckCollisionPointRec(
+                    input.mouse,
                     (Rectangle){
                         .x = x,
                         .y = y,
@@ -426,11 +450,11 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
                         .height = height,
                     })
             ) {
-                selected = c;
+                app_select(app, c->name);
                 *found = true;
             }
 
-            if (c == selected) {
+            if (app_is_selected(app, c->name)) {
                 c->value.border = border_all(3);
                 c->value.border_color = BLACK;
             } else {
@@ -446,7 +470,7 @@ void calculate_positions_and_draw(UINode *node, Vector2 click, bool *found, floa
 }
 
 
-void draw_uielement(UINode *parent, Vector2 click) {
+void draw_uielement(UINode *parent, App *app, Input input) {
     // 1. fit sizing
     calculate_fit_sizing(parent);
 
@@ -457,28 +481,27 @@ void draw_uielement(UINode *parent, Vector2 click) {
     bool found = false;
     calculate_positions_and_draw(
         parent,
-        click,
+        app,
+        input,
         &found,
         parent->value.position.x + parent->value.padding.left
     );
 
-    if (!Vector2Equals(click, Vector2_ZERO) && !found) {
-        selected = NULL;
+    if (input.left_click && !found) {
+        app_deselect(app);
     }
 }
 
 
-void draw_frame(UINode *root, Vector2 click) {
+void draw_frame(UINode *root, App *app, Input input) {
     BeginDrawing();
     ClearBackground(DARKGRAY);
 
-    draw_uielement(root, click);
+    draw_uielement(root, app, input);
 
     // debug size of screen
-    int32_t width = GetScreenWidth();
-    int32_t height = GetScreenHeight();
     draw_text(
-        TextFormat("%d x %d", width, height),
+        TextFormat("%d x %d", (int) input.screen_size.width, (int) input.screen_size.height),
         (Vector2){.x = 20, .y = 0}
     );
 
@@ -490,66 +513,113 @@ typedef enum GROW_DIR {
     GROW_DIR_HEIGHT,
 } GROW_DIRECTION;
 
-void change_size(UINode *node, GROW_DIRECTION direction, float amount) {
-    if (node == NULL) { return; }
+void change_size(App *app, GROW_DIRECTION direction, float amount) {
+    Box *box = app_get_selected(app);
+    if (box == NULL) { return; }
+
     switch (direction) {
         case GROW_DIR_WIDTH:
-            node->value.sizing.x.value = fmaxf(node->value.sizing.x.value + amount, 0);
+            box->sizing.x.value = fmaxf(box->sizing.x.value + amount, 0);
             break;
         case GROW_DIR_HEIGHT:
-            node->value.sizing.y.value = fmaxf(node->value.sizing.y.value + amount, 0);
+            box->sizing.y.value = fmaxf(box->sizing.y.value + amount, 0);
             break;
     }
 }
 
 int main(void) {
+    float amount = 10;
+    NodeAllocator a = node_allocator_init();
+    App app = {0};
+
+    int container_name = app_add_box(&app, (Box){.bg_color = COLOR_BG});
+    int b1 = app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_fixed(300, 300)});
+    int b2 = app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_grow()});
+    int b3 = app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_fixed(350, 200)});
+
     init();
 
-    float amount = 10;
-    Vector2 click = Vector2_ZERO;
-
-    NodeAllocator a = node_allocator_init();
-    UINode *root = layout_init(&a);
-
-    printf("==================\n");
-    node_print_postorder(root);
-    printf("==================\n");
-
     while (!quit_pressed()) {
+        Input input = {0};
+
+        // resize selected node
+        input.mouse = GetMousePosition();
+        input.left_click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+        input.screen_size = (Size){.width = (float) GetScreenWidth(), .height = (float) GetScreenHeight()};
+
         if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
-            change_size(selected, GROW_DIR_WIDTH, amount);
+            change_size(&app, GROW_DIR_WIDTH, amount);
         }
         if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
-            change_size(selected, GROW_DIR_WIDTH, -amount);
+            change_size(&app, GROW_DIR_WIDTH, -amount);
         }
         if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) {
-            change_size(selected, GROW_DIR_HEIGHT, -amount);
+            change_size(&app, GROW_DIR_HEIGHT, -amount);
         }
         if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) {
-            change_size(selected, GROW_DIR_HEIGHT, amount);
+            change_size(&app, GROW_DIR_HEIGHT, amount);
         }
 
-        if (IsKeyPressed(KEY_F)) {
-            node_add_default(&a, root);
-        }
-        // TODO
-        // if (IsKeyPressed(KEY_G)) {
-        //     layout_remove(root);
-        // }
+        input.add_box = IsKeyPressed(KEY_F);
+        input.remove_box = IsKeyPressed(KEY_G);
 
-        click = Vector2_ZERO;
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            click = GetMousePosition();
+        // update elements
+        if (input.add_box) {
+            app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_fixed(50, 50),});
+        }
+        if (input.remove_box && app.boxes_len > 4) {
+            app_pop_box(&app);
         }
 
-
-        if (IsWindowResized()) {
-            root->value.sizing = sizing_fixed(
-                (float) GetScreenWidth(),
-                (float) GetScreenHeight()
-            );
+        // define layout
+        UINode *root = node_add(
+            &a,
+            NULL,
+            (UIElement){
+                .sizing = sizing_fixed(input.screen_size.width, input.screen_size.height),
+                .padding = padding_all(20),
+                .child_gap = 20,
+                .bg_color = app_get_box(&app, container_name)->bg_color,
+            },
+            container_name
+        );
+        node_add(
+            &a,
+            root,
+            (UIElement){
+                .sizing = app_get_box(&app, b1)->sizing,
+                .bg_color = app_get_box(&app, b1)->bg_color
+            },
+            b1
+        );
+        node_add(
+            &a,
+            root,
+            (UIElement){
+                .sizing = app_get_box(&app, b2)->sizing,
+                .bg_color = app_get_box(&app, b2)->bg_color
+            },
+            b2
+        );
+        node_add(
+            &a,
+            root,
+            (UIElement){
+                .sizing = app_get_box(&app, b3)->sizing,
+                .bg_color = app_get_box(&app, b3)->bg_color
+            },
+            b3
+        );
+        if (app.boxes_len > 4) {
+            for (int i = 4; i < app.boxes_len; i++) {
+                node_add_default(&a, root, app_get_box(&app, i)->sizing, app_get_box(&app, i)->bg_color, i);
+            }
         }
-        draw_frame(root, click);
+
+        draw_frame(root, &app, input);
+
+        // reset arena on each frame
+        a.len = 0;
     }
 
     fini();
