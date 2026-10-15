@@ -416,8 +416,34 @@ void calculate_grow_sizing(UINode *node) {
     }
 }
 
-void calculate_positions_and_draw(UINode *node, App *app, Input input, bool *found, float left_offest) {
+void calculate_positions(UINode *node) {
     assert(node != NULL);
+
+    // iterate over all children
+    float left_offset = node->value.position.x + node->value.padding.left;
+    float top_offset = node->value.position.y + node->value.padding.top;
+    UINode *child = node->first_children;
+    while (child != NULL) {
+        child->value.position.x += left_offset;
+        child->value.position.y += top_offset;
+        calculate_positions(child);
+        left_offset += child->value.size.width + node->value.child_gap;
+
+        child = child->next_sibling;
+    }
+}
+
+void draw(UINode *node, App *app) {
+    assert(node != NULL);
+    assert(app != NULL);
+
+    if (app_is_selected(app, node->name)) {
+        node->value.border = border_all(3);
+        node->value.border_color = BLACK;
+    } else {
+        node->value.border = border_all(0);
+    }
+
     draw_rectangle(
         *node,
         node->value.position.x,
@@ -426,70 +452,55 @@ void calculate_positions_and_draw(UINode *node, App *app, Input input, bool *fou
         node->value.size.height
     );
 
-    if (node->first_children == NULL) {
-        // lead node do nothing
-        return;
+    UINode *child = node->first_children;
+    while (child != NULL) {
+        draw(child, app);
+        child = child->next_sibling;
+    }
+}
+
+void handle_interaction(UINode *node, App *app, Input input) {
+    assert(node != NULL);
+    assert(app != NULL);
+
+    if (input.left_click && CheckCollisionPointRec(
+            input.mouse,
+            (Rectangle){
+                .x = node->value.position.x,
+                .y = node->value.position.y,
+                .width = node->value.size.width,
+                .height = node->value.size.height,
+            })
+    ) {
+        app_select(app, node->name);
     }
 
-    // iterate over all children
-    UINode *c = node->first_children;
-    while (c != NULL) {
-        float x, y, height, width;
-        x = left_offest + c->value.position.x;
-        width = c->value.size.width;
-        y = node->value.position.y + node->value.padding.top + c->value.position.y;
-        height = c->value.size.height;
-
-        {
-            if (input.left_click && CheckCollisionPointRec(
-                    input.mouse,
-                    (Rectangle){
-                        .x = x,
-                        .y = y,
-                        .width = width,
-                        .height = height,
-                    })
-            ) {
-                app_select(app, c->name);
-                *found = true;
-            }
-
-            if (app_is_selected(app, c->name)) {
-                c->value.border = border_all(3);
-                c->value.border_color = BLACK;
-            } else {
-                c->value.border = border_all(0);
-            }
-        }
-
-        draw_rectangle(*c, x, y, width, height);
-        left_offest += c->value.size.width + node->value.child_gap;
-
-        c = c->next_sibling;
+    UINode *child = node->first_children;
+    while (child != NULL) {
+        handle_interaction(child, app, input);
+        child = child->next_sibling;
     }
 }
 
 
-void draw_uielement(UINode *parent, App *app, Input input) {
+void draw_uielement(UINode *node, App *app, Input input) {
     // 1. fit sizing
-    calculate_fit_sizing(parent);
+    calculate_fit_sizing(node);
 
     // 2. grow sizing
-    calculate_grow_sizing(parent);
+    calculate_grow_sizing(node);
 
-    // 3. calculate positions and draw
-    bool found = false;
-    calculate_positions_and_draw(
-        parent,
-        app,
-        input,
-        &found,
-        parent->value.position.x + parent->value.padding.left
-    );
+    // 3. calculate positions
+    calculate_positions(node);
 
-    if (input.left_click && !found) {
+    // 4. draw
+    handle_interaction(node, app, input);
+    if (app->selection == node->name) {
+        // root object select = no selection
         app_deselect(app);
     }
+
+    draw(node, app);
 }
 
 
@@ -537,6 +548,14 @@ int main(void) {
     int b2 = app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_grow()});
     int b3 = app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_fixed(350, 200)});
 
+    int extra = 3;
+    int bx = app.boxes_len;
+    int by = bx;
+    for (int i = bx; i < bx + extra; i++) {
+        app_add_box(&app, (Box){.bg_color = get_color(),});
+        by++;
+    }
+
     init();
 
     while (!quit_pressed()) {
@@ -563,14 +582,6 @@ int main(void) {
         input.add_box = IsKeyPressed(KEY_F);
         input.remove_box = IsKeyPressed(KEY_G);
 
-        // update elements
-        if (input.add_box) {
-            app_add_box(&app, (Box){.bg_color = get_color(), .sizing = sizing_fixed(50, 50),});
-        }
-        if (input.remove_box && app.boxes_len > 4) {
-            app_pop_box(&app);
-        }
-
         // define layout
         UINode *root = node_add(
             &a,
@@ -583,15 +594,31 @@ int main(void) {
             },
             container_name
         );
-        node_add(
+        UINode *left_panel = node_add(
             &a,
             root,
             (UIElement){
                 .sizing = app_get_box(&app, b1)->sizing,
-                .bg_color = app_get_box(&app, b1)->bg_color
+                .bg_color = app_get_box(&app, b1)->bg_color,
+                .padding = padding_all(5),
+                .child_gap = 5,
             },
             b1
         );
+
+        for (int i = bx; i < by; i++) {
+            node_add(
+                &a,
+                left_panel,
+                (UIElement){
+                    .sizing = (Sizing){.x = sizingaxis_fixed(50), .y = sizingaxis_grow()},
+                    .bg_color = app_get_box(&app, i)->bg_color,
+                },
+                i
+            );
+        }
+
+
         node_add(
             &a,
             root,
@@ -610,11 +637,6 @@ int main(void) {
             },
             b3
         );
-        if (app.boxes_len > 4) {
-            for (int i = 4; i < app.boxes_len; i++) {
-                node_add_default(&a, root, app_get_box(&app, i)->sizing, app_get_box(&app, i)->bg_color, i);
-            }
-        }
 
         draw_frame(root, &app, input);
 
